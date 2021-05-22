@@ -72,7 +72,8 @@
                 "syslogServer": "[parameters('moodleCommon').ctlrVmName]",
                 "webServerType": "[parameters('moodleCommon').webServerType]",
                 "htmlLocalCopySwitch": "[parameters('moodleCommon').htmlLocalCopySwitch]",
-                "isMigration": "[parameters('moodleCommon').isMigration]"
+                "isMigration": "[parameters('moodleCommon').isMigration]",
+                "sslPatchLocation": "[parameters('moodleCommon').sslPatchLocation]"
             },
             "dbServerProfile": {
                 "type": "[parameters('moodleCommon').dbServerType]",

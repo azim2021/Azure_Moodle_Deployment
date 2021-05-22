@@ -155,7 +155,6 @@
                         "osDisk": {
                             "caching": "ReadOnly",
                             "createOption": "FromImage",
-                            "diskSizeGB": "[parameters('moodleCommon').OSDiskSizeInGB]",
                             "managedDisk": {
                                 "storageAccountType": "[parameters('moodleCommon').osDiskStorageType]"
                             }
@@ -199,16 +198,16 @@
                                     "metricResourceUri": "[variables('vmssID')]",
                                     "operator": "GreaterThan",
                                     "statistic": "Average",
-                                    "threshold": 25,
+                                    "threshold": 60,
                                     "timeAggregation": "Average",
                                     "timeGrain": "PT1M",
                                     "timeWindow": "PT5M"
                                 },
                                 "scaleAction": {
-                                    "cooldown": "PT30M",
+                                    "cooldown": "PT10M",
                                     "direction": "Increase",
                                     "type": "ChangeCount",
-                                    "value": "2"
+                                    "value": "1"
                                 }
                             },
                             {
@@ -224,7 +223,7 @@
                                     "timeWindow": "PT5M"
                                 },
                                 "scaleAction": {
-                                    "cooldown": "PT20M",
+                                    "cooldown": "PT10M",
                                     "direction": "Decrease",
                                     "type": "ChangeCount",
                                     "value": "1"

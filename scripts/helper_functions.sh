@@ -70,6 +70,7 @@ function get_setup_params_from_configs_json
     export fileServerDiskSize=$(echo $json | jq -r .fileServerProfile.fileServerDiskSize)
     export phpVersion=$(echo $json | jq -r .phpProfile.phpVersion)
     export isMigration=$(echo $json | jq -r .moodleProfile.isMigration)
+    export SSLPatchURL=$(echo $json | jq -r .moodleProfile.sslPatchLocation)
 }
 
 function get_php_version {

@@ -50,7 +50,7 @@ convertcert()
     if [ $? -eq 1 ]
     then
         echo problem converting $key and $cert to pfx
-        exit 1
+        exit -1001
     fi    
 
     fingerprint=$(openssl x509 -in $cert -noout -fingerprint | cut -d= -f2 | sed 's/://g' )
@@ -67,7 +67,7 @@ convertcacert()
     if [ $? -eq 1 ]
     then
         echo problem converting $cert to pfx
-        exit 1
+        exit -3001
     fi    
 
     fingerprint=$(openssl x509 -in $cert -noout -fingerprint | cut -d= -f2 | sed 's/://g' )
@@ -94,7 +94,7 @@ EOF
     if [ $? -eq 1 ]
     then
         echo problem storing secret $name in $vaultname 
-        exit 1
+        exit -2001
     fi    
 
     id=$(az keyvault secret show --vault-name $vaultname --name $name --query id -o tsv)

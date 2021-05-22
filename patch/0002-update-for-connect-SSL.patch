@@ -1,0 +1,144 @@
+From 456aa87ecf8bc0156b64f721239ed43a3320a5e7 Mon Sep 17 00:00:00 2001
+From: Azim J <ajinha@ucalgary.ca>
+Date: Sat, 9 Jan 2021 08:42:52 -0700
+Subject: [PATCH] ssl patch
+
+---
+ config-dist.php                           |  1 +
+ lib/adodb/drivers/adodb-mysqli.inc.php    |  6 ++-
+ lib/dml/mysqli_native_moodle_database.php | 54 ++++++++++++++++++++++-
+ 3 files changed, 58 insertions(+), 3 deletions(-)
+
+diff --git a/config-dist.php b/config-dist.php
+index ecd56b6b6fa..02cb92bfa45 100644
+--- a/config-dist.php
++++ b/config-dist.php
+@@ -118,6 +118,7 @@ $CFG->dboptions = array(
+     ]
+      */
+ // For all database config settings see https://docs.moodle.org/en/Database_settings
++  'dbssl'=> true,
+ );
+ 
+ 
+diff --git a/lib/adodb/drivers/adodb-mysqli.inc.php b/lib/adodb/drivers/adodb-mysqli.inc.php
+index 63138617463..a796d1535d1 100644
+--- a/lib/adodb/drivers/adodb-mysqli.inc.php
++++ b/lib/adodb/drivers/adodb-mysqli.inc.php
+@@ -53,7 +53,7 @@ class ADODB_mysqli extends ADOConnection {
+ 	var $hasTransactions = true;
+ 	var $forceNewConnect = false;
+ 	var $poorAffectedRows = true;
+-	var $clientFlags = 0;
++	var $clientFlags = MYSQLI_CLIENT_SSL;
+ 	var $substr = "substring";
+ 	var $port = 3306; //Default to 3306 to fix HHVM bug
+ 	var $socket = ''; //Default to empty string to fix HHVM bug
+@@ -62,6 +62,7 @@ class ADODB_mysqli extends ADOConnection {
+ 	var $optionFlags = array(array(MYSQLI_READ_DEFAULT_GROUP,0));
+ 	var $arrayClass = 'ADORecordSet_array_mysqli';
+ 	var $multiQuery = false;
++	var $dbCert = '';
+ 
+ 	function __construct()
+ 	{
+@@ -83,6 +84,7 @@ class ADODB_mysqli extends ADOConnection {
+ 	// returns true or false
+ 	// To add: parameter int $port,
+ 	//         parameter string $socket
++	// Added Parameter $dbcert for secure connection
+ 	function _connect($argHostname = NULL,
+ 				$argUsername = NULL,
+ 				$argPassword = NULL,
+@@ -93,6 +95,8 @@ class ADODB_mysqli extends ADOConnection {
+ 		}
+ 		$this->_connectionID = @mysqli_init();
+ 
++		mysqli_ssl_set($this->_connectionID,NULL,NULL, $dbcert, NULL, NULL);
++
+ 		if (is_null($this->_connectionID)) {
+ 			// mysqli_init only fails if insufficient memory
+ 			if ($this->debug) {
+diff --git a/lib/dml/mysqli_native_moodle_database.php b/lib/dml/mysqli_native_moodle_database.php
+index 13eceb374d2..d1f6234b99b 100644
+--- a/lib/dml/mysqli_native_moodle_database.php
++++ b/lib/dml/mysqli_native_moodle_database.php
+@@ -80,7 +80,24 @@ class mysqli_native_moodle_database extends moodle_database {
+             $dbport = 3306;
+         }
+         ob_start();
+-        $conn = new mysqli($dbhost, $dbuser, $dbpass, '', $dbport, $dbsocket); // Connect without db
++
++        if (empty($dboptions['clientFlags'])){
++            $clientFlags=MYSQLI_CLIENT_SSL;
++        } else {
++            $clientFlags=(int)$dbOptions(['clientFlags']);
++        }
++
++        // Added lines to connect over SSL
++        $dbcert=""; //$dbcert=/home/site/cert/DigiCertGlobalRootCA.crt.pem
++                   //$dbcert = $dboptions['dbcert']
++        $conn = mysqli_init();
++        $conn->ssl_set(NULL,NULL,$dbcert,NULL,NULL);
++        mysqli_real_connect($conn, $dbhost, $dbuser, $dbpass, '', $dbport, $dbsocket,$clientFlags);
++        //clientFlags=MYSQLI_CLIENT_SSL
++        //$conn = new mysqli($dbhost, $dbuser, $dbpass, '', $dbport, $dbsocket); // Connect without db
++
++
++
+         $dberr = ob_get_contents();
+         ob_end_clean();
+         $errorno = @$conn->connect_errno;
+@@ -561,7 +578,40 @@ class mysqli_native_moodle_database extends moodle_database {
+         if ($dbhost and !empty($this->dboptions['dbpersist'])) {
+             $dbhost = "p:$dbhost";
+         }
++
++        $dbcert = ""; //eg $dbcert=/home/site/cert/DigiCertGlobalRootCA.crt.pem;
++                      //or $this->dboptions['dbcert'];
++        if (empty($dbcert)){
++            $dbcert = "";
++        }
++
++        if (empty($dboptions['clientFlags'])) {
++            $clientFlags = MYSQLI_CLIENT_SSL;
++        } else {
++            $clientFlags = $dboptions['clientFlags'];
++        }
++
++        /*
++        // Azure MySQL SSL PHP connection string example
++        $con = mysqli_init();
++
++        mysqli_ssl_set($con,
++            NULL,
++            NULL,
++            "{path to CA cert}",
++            NULL,
++            NULL);
++
++        mysqli_real_connect($conn,
++            "moodledb.mysql.database.azure.com",
++            "dbadmin",
++            "{your_password}"
++            "{your_database}",
++            3306,
++            MYSQLI_CLIENT_SSL);
++        */
+         $this->mysqli = mysqli_init();
++        $this->mysqli->ssl_set(NULL,NULL,$dbcert,NULL,NULL);
+         if (!empty($this->dboptions['connecttimeout'])) {
+             $this->mysqli->options(MYSQLI_OPT_CONNECT_TIMEOUT, $this->dboptions['connecttimeout']);
+         }
+@@ -570,7 +620,7 @@ class mysqli_native_moodle_database extends moodle_database {
+         $dberr = null;
+         try {
+             // real_connect() is doing things we don't expext.
+-            $conn = @$this->mysqli->real_connect($dbhost, $dbuser, $dbpass, $dbname, $dbport, $dbsocket);
++            $conn = @$this->mysqli->real_connect($dbhost, $dbuser, $dbpass, $dbname, $dbport, $dbsocket,$clientFlags);
+         } catch (\Exception $e) {
+             $dberr = "$e";
+         }
+-- 
+2.29.2.windows.3
+

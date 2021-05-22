@@ -68,6 +68,7 @@ set -ex
     echo $fileServerDiskSize >>/tmp/vars.txt
     echo $phpVersion         >> /tmp/vars.txt
     echo $isMigration        >> /tmp/vars.txt
+    echo $SSLPatchURL >> /tmp/vars.txt
 
     check_fileServerType_param $fileServerType
 
@@ -79,18 +80,24 @@ set -ex
       mysqlIP=$dbIP
       mysqladminlogin=$dbadminloginazure
       mysqladminpass=$dbadminpass
+    elif [ "$dbServerType" = "flexmysql" ]; then
+      dbServerType=mysql
+      mysqlIP=$dbIP
+      mysqladminlogin=$dbadminlogin
+      mysqladminpass=$dbadminpass
+      dbServerType=mysql # update dbServerType to mysql for rest of script
+      azuremoodledbuser=$moodledbname
     elif [ "$dbServerType" = "mssql" ]; then
       mssqlIP=$dbIP
       mssqladminlogin=$dbadminloginazure
       mssqladminpass=$dbadminpass
-
     elif [ "$dbServerType" = "postgres" ]; then
       postgresIP=$dbIP
       pgadminlogin=$dbadminloginazure
       pgadminpass=$dbadminpass
     else
       echo "Invalid dbServerType ($dbServerType) given. Only 'mysql' or 'postgres' or 'mssql' is allowed. Exiting"
-      exit 1
+      exit -91
     fi
 
     # make sure system does automatic updates and fail2ban
@@ -236,7 +243,12 @@ set -ex
     if [ ! -d /moodle/html/moodle ]; then
         # downloading moodle only if /moodle/html/moodle does not exist -- if it exists, user should populate it in advance correctly as below. This is to reduce template deployment time.
         /usr/bin/curl -k --max-redirs 10 https://github.com/moodle/moodle/archive/'$moodleVersion'.zip -L -o moodle.zip
+        /usr/bin/curl -k --max-redirs 10 '$SSLPatchURL' -L -o update_SSL.patch
+        /bin/cp update_SSL.patch /moodle
         /usr/bin/unzip -q moodle.zip
+        cd '$moodleUnzipDir'
+        /usr/bin/patch -p1 < ../update_SSL.patch
+        cd ..
         /bin/mv '$moodleUnzipDir' /moodle/html/moodle
     fi
 
@@ -764,7 +776,14 @@ EOF
     service varnish restart
 
     if [ $dbServerType = "mysql" ]; then
-        mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} -e "CREATE DATABASE ${moodledbname} CHARACTER SET utf8;"
+        mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} -e "CREATE DATABASE ${moodledbname} CHARACTER SET utf8mb4;"
+        mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} -e "GRANT ALL ON ${moodledbname}.* TO ${moodledbuser} IDENTIFIED BY '${moodledbpass}';"
+
+        echo "mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} -e \"CREATE DATABASE ${moodledbname};\"" >> /tmp/debug
+        echo "mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} -e \"GRANT ALL ON ${moodledbname}.* TO ${moodledbuser} IDENTIFIED BY '${moodledbpass}';\"" >> /tmp/debug
+
+    elif [ $dbServerType = "flexmysql" ]; then
+        mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} -e "CREATE DATABASE ${moodledbname} CHARACTER SET utf8mb4;" --
         mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} -e "GRANT ALL ON ${moodledbname}.* TO ${moodledbuser} IDENTIFIED BY '${moodledbpass}';"
 
         echo "mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} -e \"CREATE DATABASE ${moodledbname};\"" >> /tmp/debug
@@ -832,10 +851,10 @@ EOF
             replace_moodle_config_value "dataroot" "\/moodle\/moodledata"
             replace_moodle_config_value "wwwroot" "$siteProtocol:\/\/$siteFQDN"
         else
-            echo -e "cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en --wwwroot="$siteProtocol"://"$siteFQDN" --dataroot=/moodle/moodledata --dbhost="$mysqlIP" --dbname="$moodledbname" --dbuser="$azuremoodledbuser" --dbpass="$moodledbpass" --dbtype=mysqli --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass="$adminpass" --adminemail=admin@"$siteFQDN" --non-interactive --agree-license --allow-unstable || true "
-            cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en --wwwroot=$siteProtocol://$siteFQDN   --dataroot=/moodle/moodledata --dbhost=$mysqlIP   --dbname=$moodledbname   --dbuser=$azuremoodledbuser   --dbpass=$moodledbpass   --dbtype=mysqli --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass=$adminpass   --adminemail=admin@$siteFQDN   --non-interactive --agree-license --allow-unstable || true
+            echo -e "cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en_us --wwwroot="$siteProtocol"://"$siteFQDN" --dataroot=/moodle/moodledata --dbhost="$mysqlIP" --dbname="$moodledbname" --dbuser="$azuremoodledbuser" --dbpass="$moodledbpass" --dbtype=mysqli --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass="$adminpass" --adminemail=admin@"$siteFQDN" --non-interactive --agree-license --allow-unstable || true "
+            cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en_us --wwwroot=$siteProtocol://$siteFQDN   --dataroot=/moodle/moodledata --dbhost=$mysqlIP   --dbname=$moodledbname   --dbuser=$azuremoodledbuser   --dbpass=$moodledbpass   --dbtype=mysqli --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass=$adminpass   --adminemail=admin@$siteFQDN   --non-interactive --agree-license --allow-unstable || true
         fi
-
+        
         if [ "$installObjectFsSwitch" = "true" ]; then
             mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} ${moodledbname} -e "INSERT INTO mdl_config_plugins (plugin, name, value) VALUES ('tool_objectfs', 'enabletasks', 1);" 
             mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} ${moodledbname} -e "INSERT INTO mdl_config_plugins (plugin, name, value) VALUES ('tool_objectfs', 'filesystem', '\\\tool_objectfs\\\azure_file_system');"
@@ -844,7 +863,7 @@ EOF
             mysql -h $mysqlIP -u $mysqladminlogin -p${mysqladminpass} ${moodledbname} -e "INSERT INTO mdl_config_plugins (plugin, name, value) VALUES ('tool_objectfs', 'azure_sastoken', '${sas}');"
         fi
     elif [ $dbServerType = "mssql" ]; then
-        cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en --wwwroot=$siteProtocol://$siteFQDN   --dataroot=/moodle/moodledata --dbhost=$mssqlIP   --dbname=$moodledbname   --dbuser=$azuremoodledbuser   --dbpass=$moodledbpass   --dbtype=sqlsrv --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass=$adminpass   --adminemail=admin@$siteFQDN   --non-interactive --agree-license --allow-unstable || true
+        cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en_us --wwwroot=$siteProtocol://$siteFQDN   --dataroot=/moodle/moodledata --dbhost=$mssqlIP   --dbname=$moodledbname   --dbuser=$azuremoodledbuser   --dbpass=$moodledbpass   --dbtype=sqlsrv --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass=$adminpass   --adminemail=admin@$siteFQDN   --non-interactive --agree-license --allow-unstable || true
 
         if [ "$installObjectFsSwitch" = "true" ]; then
             /opt/mssql-tools/bin/sqlcmd -S $mssqlIP -U $mssqladminlogin -P ${mssqladminpass} -d ${moodledbname} -Q "INSERT INTO mdl_config_plugins (plugin, name, value) VALUES ('tool_objectfs', 'enabletasks', 1)" 
@@ -854,8 +873,8 @@ EOF
             /opt/mssql-tools/bin/sqlcmd -S $mssqlIP -U $mssqladminlogin -P ${mssqladminpass} -d${moodledbname} -Q "INSERT INTO mdl_config_plugins (plugin, name, value) VALUES ('tool_objectfs', 'azure_sastoken', '${sas}')"
         fi
     else
-        echo -e "cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en --wwwroot="$siteProtocol"://"$siteFQDN" --dataroot=/moodle/moodledata --dbhost="$postgresIP" --dbname="$moodledbname" --dbuser="$azuremoodledbuser" --dbpass="$moodledbpass" --dbtype=pgsql --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass="$adminpass" --adminemail=admin@"$siteFQDN" --non-interactive --agree-license --allow-unstable || true "
-        cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en --wwwroot=$siteProtocol://$siteFQDN   --dataroot=/moodle/moodledata --dbhost=$postgresIP   --dbname=$moodledbname   --dbuser=$azuremoodledbuser   --dbpass=$moodledbpass   --dbtype=pgsql --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass=$adminpass   --adminemail=admin@$siteFQDN   --non-interactive --agree-license --allow-unstable || true
+        echo -e "cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en_us --wwwroot="$siteProtocol"://"$siteFQDN" --dataroot=/moodle/moodledata --dbhost="$postgresIP" --dbname="$moodledbname" --dbuser="$azuremoodledbuser" --dbpass="$moodledbpass" --dbtype=pgsql --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass="$adminpass" --adminemail=admin@"$siteFQDN" --non-interactive --agree-license --allow-unstable || true "
+        cd /tmp; /usr/bin/php /moodle/html/moodle/admin/cli/install.php --chmod=770 --lang=en_us --wwwroot=$siteProtocol://$siteFQDN   --dataroot=/moodle/moodledata --dbhost=$postgresIP   --dbname=$moodledbname   --dbuser=$azuremoodledbuser   --dbpass=$moodledbpass   --dbtype=pgsql --fullname='Moodle LMS' --shortname='Moodle' --adminuser=admin --adminpass=$adminpass   --adminemail=admin@$siteFQDN   --non-interactive --agree-license --allow-unstable || true
 
         if [ "$installObjectFsSwitch" = "true" ]; then
             # Add the ObjectFS configuration to Moodle.
@@ -870,18 +889,7 @@ EOF
     fi
 
     echo -e "\n\rDone! Installation completed!\n\r"
-    
-    # use /tmp/localcachedir/ for localcache and /var/www/html/moodle/ for core_component.php
-    dir="/var/www/html/moodle"
-    if [[ ! -d $dir ]]; then
-        mkdir -p $dir
-    fi
-    sed -i "22 a \$CFG->localcachedir = '/tmp/localcachedir';" /moodle/html/moodle/config.php
-    sed -i "22 a \$CFG->alternative_component_cache = '/var/www/html/moodle/core_component.php';" /moodle/html/moodle/config.php
-    chown -R www-data:www-data $dir
-    chgrp www-data $dir
-    chmod g+s $dir
-    
+
     if [ "$redisAuth" != "None" ]; then
         create_redis_configuration_in_moodledata_muc_config_php
 
@@ -1025,7 +1033,5 @@ EOF
 
    create_last_modified_time_update_script
    run_once_last_modified_time_update_script
-
-   echo "### Script End `date`###"
-
-}  2>&1 | tee /tmp/install.log
+   
+}  > /tmp/install.log
