@@ -121,6 +121,7 @@
         },
         "moodleVersion": {
             "allowedValues": [
+                "MOODLE_310_STABLE",
                 "MOODLE_39_STABLE",
                 "MOODLE_38_STABLE"
             ],
@@ -1232,7 +1233,7 @@
             "mssqlDbEdition": "[parameters('mssqlDbEdition')]",
             "mssqlVersion": "[parameters('mssqlVersion')]",
             "mysqlPgresSkuHwFamily": "[parameters('mysqlPgresSkuHwFamily')]",
-            "mysqlPgresSkuName": "[concat(if(equals(parameters('mysqlPgresSkuTier'),'Basic'),'B', if(equals(parameters('mysqlPgresSkuTier'),'GeneralPurpose'),'GP', 'MO')), '_', parameters('mysqlPgresSkuHwFamily'), '_', string(parameters('mysqlPgresVcores')))]",
+            "mysqlPgresSkuName": "[concat(if(equals(parameters('mysqlPgresSkuTier'),'Basic'),'B', if(equals(parameters('mysqlPgresSkuTier'),'GeneralPurpose'),'GP',if(equals(parameters('mysqlPgresSkuTier'),'Burstable'),'Standard','MO'))), '_', parameters('mysqlPgresSkuHwFamily'), if(equals(parameters('mysqlPgresSkuTier'),'Burstable'),'','_'), string(parameters('mysqlPgresVcores')), if(equals(parameters('mysqlPgresSkuTier'),'Burstable'),'s',''))]",
             "mysqlPgresSkuTier": "[parameters('mysqlPgresSkuTier')]",
             "mysqlPgresStgSizeGB": "[parameters('mysqlPgresStgSizeGB')]",
             "mysqlPgresVcores": "[parameters('mysqlPgresVcores')]",
