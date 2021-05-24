@@ -85,7 +85,7 @@
                     "type": "firewallRules"
                 },
                 {
-                    "apiVersion": "2017-12-01",
+                    "apiVersion": "2020-07-01-preview",
                     "dependsOn": [
                         "[concat('Microsoft.DBforMySQL/flexibleServers/', parameters('moodleCommon').serverName)]"
                     ],
@@ -98,7 +98,7 @@
                     "type": "firewallRules"
                 },
                 {
-                    "apiVersion": "2017-12-01",
+                    "apiVersion": "2020-07-01-preview",
                     "dependsOn": [
                         "[concat('Microsoft.DBforMySQL/flexibleServers/', parameters('moodleCommon').serverName)]"
                     ],
