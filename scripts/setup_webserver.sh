@@ -425,10 +425,36 @@ EOF
    VARNISHSTART="ExecStart=\/usr\/sbin\/varnishd -j unix,user=vcache -F -a :80 -T localhost:6082 -f \/etc\/varnish\/moodle.vcl -S \/etc\/varnish\/secret -s malloc,1024m -p thread_pool_min=200 -p thread_pool_max=4000 -p thread_pool_add_delay=2 -p timeout_linger=100 -p timeout_idle=30 -p send_timeout=1800 -p thread_pools=4 -p http_max_hdr=512 -p workspace_backend=512k"
    sed -i "s/^ExecStart.*/${VARNISHSTART}/" /lib/systemd/system/varnish.service
 
+  # certbot pass through
+  cat <<EOF >> /etc/varnish/certbot.vcl
+  # From: https://docs.varnish-software.com/tutorials/hitch-letsencrypt/
+  vcl 4.1;
+
+backend certbot {
+    .host = "127.0.0.1";
+    .port = "8080";
+}
+
+sub vcl_recv {
+    if (req.url ~ "^/\.well-known/acme-challenge/") {
+        set req.backend_hint = certbot;
+        return(pipe);
+    }
+}
+
+sub vcl_pipe {
+    if (req.backend_hint == certbot) {
+        set req.http.Connection = "close";
+        return(pipe);
+    }
+}
+EOF
+
+
    # Configure varnish VCL for moodle
    cat <<EOF >> /etc/varnish/moodle.vcl
 vcl 4.0;
-
+include "/etc/varnish/certbot.vcl";
 import std;
 import directors;
 backend default {
