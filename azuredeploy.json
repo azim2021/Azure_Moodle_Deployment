@@ -267,7 +267,8 @@
             "allowedValues": [
                 "Basic",
                 "GeneralPurpose",
-                "MemoryOptimized"
+                "MemoryOptimized",
+                "Burstable"
             ],
             "defaultValue": "GeneralPurpose",
             "metadata": {
@@ -278,7 +279,8 @@
         "mysqlPgresSkuHwFamily": {
             "allowedValues": [
                 "Gen4",
-                "Gen5"
+                "Gen5",
+                "B"
             ],
             "defaultValue": "Gen5",
             "metadata": {
