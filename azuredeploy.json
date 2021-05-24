@@ -1301,7 +1301,7 @@
             "webServerSetupScriptFilename": "setup_webserver.sh",
             "webServerType": "[parameters('webServerType')]",
             "isMigration": "[parameters('isMigration')]",
-            "sslPatchLocation": "[concat(parameters('_artifactsLocation') , parameters('sslPatchName') )]"}
+            "sslPatchLocation": "[concat(parameters('_artifactsLocation') , parameters('sslPatchName') )]"
         },
         "certUrlArray": [
             {
