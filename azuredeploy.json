@@ -210,7 +210,8 @@
             "allowedValues": [
                 "postgres",
                 "mysql",
-                "mssql"
+                "mssql",
+                "flexmysql"
             ],
             "metadata": {
                 "description": "Database type"
