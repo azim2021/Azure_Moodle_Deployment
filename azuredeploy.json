@@ -984,7 +984,7 @@
                         "value": "[variables('moodleCommon')]"
                     },
                     "dbFQDN": {
-                        "value": "[reference('dbTemplate').outputs.dbFQDN.value]"
+                        "value": "[reference('dbTemplate').outputs.fullyQualifiedDomainName.value]"
                     },
                     "storageAccountName": {
                         "value": "[reference('storageAccountTemplate').outputs.storageAccountName.value]"
